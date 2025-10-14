@@ -7,8 +7,8 @@ class Graphics:
         self.__material = material
         
         self.__vbo = self.create_buffers()
-        self.__ibo = ctx.buffer(model.indices.tobyttes())
-        self.__vao = ctx.vertex_array(material.shader_program.prog, [*self.__vbo, self.__ibo])
+        self.__ibo = ctx.buffer(model.indices.tobytes())
+        self.__vao = ctx.vertex_array(material.shader_program.prog, [*self.__vbo], self.__ibo)
         
         self.__textures = self.load_textures(material.texture_data)
         
@@ -16,7 +16,7 @@ class Graphics:
         buffers = []
         shader_attributes = self.__material.shader_program.attributes
         
-        for attribute in self.__model.vertex_layout.get_attrributes():
+        for attribute in self.__model.vertex_layout.get_attributes():
             if attribute.name in shader_attributes:
                 vbo = self.__ctx.buffer(attribute.array.tobytes())
                 buffers.append((vbo, attribute.format, attribute.name))
@@ -26,7 +26,7 @@ class Graphics:
         textures = {}
         for texture in texture_data:
             if texture.image_data:
-                texture_ctx.repeat_x = self.__ctx.texture(texture.size, texture.channels_amount, texture.get_bytes())
+                texture_ctx = self.__ctx.texture(texture.size, texture.channels_amount, texture.get_bytes())
                 if texture.build_mipmaps:
                     texture_ctx.build_mipmaps()
                 texture_ctx.repeat_x = texture.repeat_x
@@ -39,11 +39,11 @@ class Graphics:
             if name in self.__material.shader_program.prog:
                 self.__material.set_uniform(name, value)
                 
-        for i, (name, tex_ctx) in enumerate(self.__textures.items()):
+        for i, (name, (_, tex_ctx)) in enumerate(self.__textures.items()):
             tex_ctx.use(i)
             self.__material.shader_program.set_uniform(name, i)
             
-        self.__vao.rendder()
+        self.__vao.render()
         
     def update_texture(self, texture_name, new_data):
         if texture_name not in self.__textures:

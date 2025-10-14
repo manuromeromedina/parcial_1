@@ -11,7 +11,7 @@ class RayTracer:
         
     def trace_ray(self,ray,objects):
         for obj in objects:
-            if obj.check_hit(ray.origin, ray.directioon):
+            if obj.check_hit(ray.origin, ray.direction):
                 return (255,0,0) #rojo
         height = ray.direction.y
         return self.camera.get_sky_gradient(height)

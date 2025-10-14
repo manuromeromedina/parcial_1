@@ -1,6 +1,8 @@
 from graphics import Graphics
 import glm
 import numpy as np
+from raytracer import RayTracer
+import math
 
 class Scene:
     def __init__(self, ctx, camera):
@@ -8,6 +10,9 @@ class Scene:
         self.objects = []
         self.graphics = {}
         self.camera = camera
+        self.view = camera.get_view_matrix()
+        self.projection = camera.get_perspective_matrix()
+        self.time = 0
 
     def add_object(self, model, material):
         self.objects.append(model)

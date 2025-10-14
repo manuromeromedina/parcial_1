@@ -9,9 +9,9 @@ from scene import Scene, RayScene
 import numpy as np
 
 
-
+WIDTH, HEIGHT = 80, 60
 # Ventana
-window = Window(800, 600, "Parcial 1  - Manolo")
+window = Window(WIDTH, HEIGHT, "Parcial 1  - Manolo")
 
 # Shader
 shader_program = ShaderProgram(window.ctx, '../shaders/basic.vert', '../shaders/basic.frag')

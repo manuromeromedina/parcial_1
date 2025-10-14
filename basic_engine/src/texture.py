@@ -13,13 +13,13 @@ class ImageData:
 
 class Texture:
     def __init__(self, name = "u_texture", width = 1, height = 1, channels_amount = 3, 
-                 image_data = ImageData, color = (0,0,0), repeat_x = False, repeat_y = False,
+                 image_data: ImageData = None, color = (0,0,0), repeat_x = False, repeat_y = False,
                  build_mipmaps = False):
         
         self.name = name
         self.size = (width, height)
         self.channels_amount = channels_amount
-        self.image_data = image_data.tobytes() if image_data is not None else None
+
         self.repeat_x = repeat_x
         self.repeat_y = repeat_y
         self.build_mipmaps = build_mipmaps

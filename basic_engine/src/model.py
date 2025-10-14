@@ -9,7 +9,7 @@ class Vertex:
         return self.__name
 
     @property
-    def fortmat(self):
+    def format(self):
         return self.__format
 
     @property
