@@ -1,22 +1,25 @@
+#ejecuta el programa, crea un ventana window, un shaderprogram
+#una scene, crea las instancias de los objetivos graficos (cube)
+#crea la camra y la posiciona
+#agrega los objetos en la escena y corre el loop principal
+
 from window import Window
 from texture import Texture
 from material import Material, StandardMaterial
 from shader_program import ShaderProgram
-from scene import Scene, RayScene, RaySceneGPU
-from camera import Camera
 from cube import Cube
+from camera import Camera
+from scene import Scene, RayScene, RaySceneGPU
 from quad import Quad
+import numpy as np
 
+WIDTH, HEIGHT = 1000,800
 
-WIDTH, HEIGHT = 800, 600
-
-
-SCENE_TYPE = "gpu"  # Opciones: "normal", "cpu", "gpu"
-
+SCENE_TYPE = "cpu" # opciones "normal, "cpu", "gpu"
 
 scene_configs = {
     "normal": {
-        "needs_sprite": False,
+       "needs_sprite": False,
         "sprite_channels_amount": 3,
         "sprite_default_color": (255, 255, 255)
     },
@@ -30,13 +33,13 @@ scene_configs = {
         "sprite_channels_amount": 4,
         "sprite_default_color": (255, 255, 255, 255)
     }
-}
 
+}
 
 config = scene_configs[SCENE_TYPE]
 
 
-window = Window(WIDTH, HEIGHT, f"Parcial 1 - Manolo - {SCENE_TYPE.upper()}")
+window = Window(WIDTH, HEIGHT, f"Basic Graphic Engine - {SCENE_TYPE.upper()}")
 
 
 shader = ShaderProgram(window.ctx, '../shaders/basic.vert', '../shaders/basic.frag')

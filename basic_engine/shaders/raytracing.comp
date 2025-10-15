@@ -1,79 +1,307 @@
 #version 430
 
+// layout --> palabra clave layout es un calificador de GLSL que especifica cómo se organizan
+// local_size -->  "groups" que definimos al ejecutar el compute shader
+// 16x16 para un buen balance entre ocupación de GPU y eficiencia cache
 layout(local_size_x = 16, local_size_y = 16) in;
-layout(rgba32f, binding = 0) uniform image2D outputImage;
+layout(rgba32f, binding = 0 ) uniform image2D outputImage;
 
-layout(std430, binding = 0) buffer Models { mat4 modelMatrices[]; };
-layout(std430, binding = 1) buffer InvModels { mat4 inverseModelMatrices[]; };
-layout(std430, binding = 2) buffer Materials { mat4 materialData[]; };
-layout(std430, binding = 3) buffer BVH { mat4 bvhNodes[]; };
+// std430 --> estandar de empaquetado de memoria que define como se alinean los datos en el buffer
+// la cantidad de  elementos en un array depende de la cant de obj en la escena
+// matrices inversas para testear intersecciones,
+// es mas eficiente transformar el rayo al espacio
+layout(std430, binding = 0) buffer Models {mat4 modelMatrices[];};
+layout(std430, binding = 1) buffer InvModels {mat4 inverseModelMatrices[];};
+layout(std430, binding = 2) buffer Materials {vec4 materialData[];};
+layout(std430, binding = 3) buffer BVH {vec4 bvhNodes[];};
 
+
+// posición de la cámara, punto desde dónde se originan los rayos.
 uniform vec3 cameraPosition;
+
+//la inversa de la base ortonormal de la cámara (coordenadas desde su punto de vista).
+// Sirve para pasar un punto del espacio vectorial de la cámara (view) al espacio global (world).
 uniform mat4 inverseViewMatrix;
+
+// campo de visión de la cámara, es un ángulo en grados.
 uniform float fieldOfView;
+
+// Es un valor muy pequeño (0.0001) que 
+// se utiliza como margen numérico de seguridad en ray tracing o path tracing.
 const float EPS = 1e-4;
+
+// Límite de cantidad de rebotes del rayo.
 const int MAX_RAY_BOUNCES = 3;
+
+// Vector de 3 coordenadas, unitario que representa la dirección de la luz global.
 const vec3 LIGHT_DIRECTION = normalize(vec3(0.5, 1.0, 0.1));
+
+// Vector de 3 coordenadas (r, g, b) que representa el color de la luz. En nuestro caso es blanco pur
 const vec3 LIGHT_COLOR = vec3(1.0, 1.0, 1.0);
 
-struct RayHit {
-    bool didHit;                //¿Hubo interacción?
-    float distance;            //Distancia al punto de impacto
-    vec3 position;            //Posición dle impacto (mundo)
-    vec3 normal;             //Nomal de la superficie
-    vec3 color;             //Color del material
-    float reflectivity;    //Reflectividad (0-1)
+struct RayHit{
+
+    bool didHit;        // hubo intersección?
+    float distance;     // ditancia al punto de impacto
+    vec3 position;      // posición del impacto (mundo)
+    vec3 normal;        // normal de la superficie
+    vec3 color;        // color del material
+    float reflectivity; // reflectividad
+
 };
 
 bool intersectAxisAlignedBox(vec3 rayOrigin, vec3 rayDirection, 
-                             vec3 boxMin, vec3 boxMax, 
-                             out float timeNear, out float timeFar) {
+                            vec3 boxMin, vec3 boxMax, 
+                            out float timeNear, out float timeFar){
+
+    // calcula en qué valor de tiempo el rayo cruza
     vec3 timeAtMinPlane = (boxMin - rayOrigin) / rayDirection;
     vec3 timeAtMaxPlane = (boxMax - rayOrigin) / rayDirection;
+
+    // ordenar los tiempos
     vec3 timeMin = min(timeAtMinPlane, timeAtMaxPlane);
     vec3 timeMax = max(timeAtMinPlane, timeAtMaxPlane);
-    timeNear = max(max(timeMin.x, timeMin.y), timeMin.z);
+
+    // encontrar la entrada y salida global
+    timeNear = max(max(timeMin.x , timeMin.y), timeMin.z);
     timeFar = min(min(timeMax.x, timeMax.y), timeMax.z);
     return timeFar >= max(timeNear, 0.0);
-}
+
+
+};
+
+// los OBB son cajas que pueden estar rotadas, escaladas y trasladadas
+bool intersectOrientedBox(int objectIndex, vec3 rayOriginWorld, vec3 rayDirectionWorld,
+                          out float hitDistance, out vec3 hitPosition, out vec3 hitNormal) {
+   //se obtiene la matriz inversa del objeto
+    mat4 inverseTransform = inverseModelMatrices[objectIndex];
+    // el origen se multrplica con la inversa, applicando traslación, rotación y escala
+    vec3 rayOriginLocal = (inverseTransform * vec4(rayOriginWorld, 1.0)).xyz;
+    // se normaliza
+    vec3 rayDirectionLocal = normalize((inverseTransform * vec4(rayDirectionWorld, 0.0)).xyz);
+
+    // se calcula timeNear y timeFar y se valida la intersección
+    float timeNear, timeFar;
+    vec3 boxMinLocal = vec3(-1.0);
+    vec3 boxMaxLocal = vec3(1.0);
+    bool intercects = intersectAxisAlignedBox(rayOriginLocal, rayDirectionLocal, boxMinLocal, boxMaxLocal, timeNear, timeFar);
+   
+    if (!intercects) return false;
+
+    // si no hubo interesseción, se elgie el valor de  timelocal segun de si el 
+    // rayo está entrando al cubo desde afuera o el rayo comenzo dentro del cubo
+    float timeLocal = (timeNear > EPS) ? timeNear : timeFar;
+   // se calcula el valor de la posición exacta del impacto
+    vec3 hitPositionLocal = rayOriginLocal + rayDirectionLocal * timeLocal;
+
+
+    vec3 distanceToPositiveFaces = abs(hitPositionLocal - vec3(1.0));
+    vec3 distanceToNegativeFaces = abs(hitPositionLocal + vec3(1.0));
+    vec3 minDistance = min(distanceToPositiveFaces, distanceToNegativeFaces);
+    float closestFaceDistance = min(min(minDistance.x, minDistance.y), minDistance.z);
+   
+   // lcular la iluminación correctamente se necesita la normal de la superficie
+    vec3 normalLocal = vec3(0.0);
+    if (minDistance.x == closestFaceDistance)
+        normalLocal = vec3(sign(hitPositionLocal.x), 0, 0);
+    else if (minDistance.y == closestFaceDistance)
+        normalLocal = vec3(0, sign(hitPositionLocal.y), 0);
+    else
+        normalLocal = vec3(0, 0, sign(hitPositionLocal.z));
+
+
+    mat3 normalTransform = transpose(inverse(mat3(modelMatrices[objectIndex])));
+    // e transforma con la transpuesta de la inversa de la matriz (3x3, sin traslación) y se normaliza.
+    hitNormal = normalize(normalTransform * normalLocal);
+    // se transforma con la matriz del modelo (no la inversa) y con w = 1.0 (pues, es un punto).
+    hitPosition = (modelMatrices[objectIndex] * vec4(hitPositionLocal, 1.0)).xyz;
+    // se calcula con el producto de la distancia entre hitPosition y la posición del rayo en el plano global, y la dirección del rayo en el plano global.
+    hitDistance = dot(hitPosition - rayOriginWorld, rayDirectionWorld);
+   
+
+   // se verifica que hitDistance sea mayor a EPS para descartar intersecciones
+   // demasiado cercanas que podrían ser errores numéricos o autointersecciones, 
+   //y se retorna verdadero confirmando la intersección válida.
+
+    return hitDistance > EPS;
+};
+
+RayHit traverseBoundingVolumeHierarchy(vec3 rayOrigin, vec3 rayDirection) {
+    // Se inicializa la estructura RayHit que almacenará la intersección más cercana encontrada. 
+    // Se marca didHit como falso y distance como un valor muy grande (1e20, prácticamente infinito) 
+    // para que cualquier intersección real sea menor.
+
+    RayHit closestHit;
+    closestHit.didHit = false;
+    closestHit.distance = 1e20;
+
+    //Se crea un array de 32 enteros que funcionará como pila para almacenar índices de nodos pendientes de procesar.
+    int nodeStack[32];
+    //  El stackPointer indica la posición actual en la pila. Se inicia agregando el nodo raíz (índice 0) al stack.
+    int stackPointer = 0;
+    nodeStack[stackPointer++] = 0;
+
+
+    while (stackPointer > 0) {
+        // se extrae el ultimo nodo agregado, decrementado el stackPointer y se obtienen los dos vectores q definie AABB actual
+        int nodeIndex = nodeStack[--stackPointer];
+
+        // bvhNodes es una de las matrices que definimos al inicio del código
+        // contiene las coordenadas mínimas en xyz y el índice del hijo izquierdo en w. 
+        vec4 boundingBoxMin = bvhNodes[nodeIndex];
+        // contiene las coordenadas máximas en xyz y información del hijo derecho o primitiva en w.
+        vec4 boundingBoxMax = bvhNodes[nodeIndex + 1];
+
+
+        float timeNear, timeFar;
+        // para verificar si el rayo intersecta el AABB del nodo actual, obteniendo timeNear y timeFar
+        // Si no intersecta o si timeNear es mayor o igual a la distancia del objeto más cercano ya encontrado (early ray termination), 
+        // se descarta este nodo y todos sus hijos con continue.
+        bool intersects = intersectAxisAlignedBox(rayOrigin, rayDirection, boundingBoxMin.xyz, boundingBoxMax.xyz, timeNear, timeFar);
+       
+        if (!intersects || timeNear >= closestHit.distance)
+            continue;
+
+        // Se extraen leftChildIndex de boundingBoxMin.w y rightChildOrPrimitiveIndex de boundingBoxMax.w. 
+        //  si rightChildOrPrimitiveIndex es mayor o igual a cero, el nodo es una hoja (contiene un objeto/primitiva)
+        //  si es negativo, el nodo es interno (tiene hijos).
+        int leftChildIndex = int(boundingBoxMin.w);
+        int rightChildOrPrimitiveIndex = int(boundingBoxMax.w);
+
+        // si es >= 0, el nodo contiene una primitiva (objeto). 
+        //Se llama a intersectOrientedBox con el índice de la primitiva para testar la intersección real con el objeto. 
+        if (rightChildOrPrimitiveIndex >= 0) {
+            float hitDist;
+            vec3 hitPos;
+            vec3 hitNorm;
+
+            //se actualiza closestHit con toda la información: se marca didHit como verdadero, se guarda la distancia, posición, normal, 
+            // y se extraen el color y reflectividad del buffer materialData usando el índice de la primitiva
+            if (intersectOrientedBox(rightChildOrPrimitiveIndex, rayOrigin, rayDirection,
+                                     hitDist, hitPos, hitNorm) && hitDist < closestHit.distance) {
+                closestHit.didHit = true;
+                closestHit.distance = hitDist;
+                closestHit.position = hitPos;
+                closestHit.normal = hitNorm;
+                vec4 material = materialData[rightChildOrPrimitiveIndex];
+                closestHit.color = material.rgb;
+                closestHit.reflectivity = material.a;
+
+            }
+            // si  es negativo, el nodo tiene hijos. Se agregan los índices de los hijos al stack para procesarlos posteriormente.
+            // El hijo izquierdo se obtiene directamente de leftChildIndex y se multiplica por 2 porque cada nodo ocupa dos posiciones en el array
+            //  hijo derecho se decodifica con la fórmula , ya que fue codificado negativamente para distinguirlo de las hojas, y también se multiplica por 
+        } else {
+            if (leftChildIndex >= 0)
+                nodeStack[stackPointer++] = leftChildIndex * 2;
+            int rightChildIndex = -rightChildOrPrimitiveIndex - 2;
+            if (rightChildIndex >= 0)
+                nodeStack[stackPointer++] = rightChildIndex * 2;
+        }
+    }
+    return closestHit;
+};
+
+// calculo de sombras
+float calculateShadow(vec3 surfacePosition, vec3 surfaceNormal){
+    // Se calcula el origen del rayo de sombra desplazando la posición de la superficie ligeramente en la dirección de la normal
+    vec3 shadowRayOrigin = surfacePosition + surfaceNormal * EPS;
+
+    // 0.3 --> simula luz indirecta o rebotada que llegaria al punto incluse estando en sombras. se ven más naturales
+    // Si el método retorna didHit verdadero, significa que hay un objeto bloqueando la luz, por lo que el punto está en sombra y se retorna 0.
+    // Si didHit es falso, no hay oclusión y se retorna 1.0. completamente iluminado
+    return traverseBoundingVolumeHierarchy(shadowRayOrigin, LIGHT_DIRECTION).didHit ? 0.3 : 1.0;
+};
+
+vec3 calculateShading(vec3 surfaceColor, vec3 surfacePosition, vec3 surfaceNormal, vec3 viewDirection){
+    float diffuseIntensity = max(dot(surfaceNormal, LIGHT_DIRECTION), 0.0);
+    float specularIntensity = pow(max(dot(normalize(LIGHT_DIRECTION + viewDirection), surfaceNormal), 0.0), 64);
+    float ambientFactor = 0.08;
+    // determinar si el punto está iluminado (1.0) o en sombra (0.3)
+    float shadowFactor = calculateShadow(surfacePosition, surfaceNormal);
+
+    // luz indirecta constante que ilumina todas las superficies por igual.
+    vec3 ambient = ambientFactor * surfaceColor;
+    vec3 diffuse = diffuseIntensity * surfaceColor;
+    vec3 specular = specularIntensity * LIGHT_COLOR;
+    vec3 shadow = shadowFactor * (diffuse + specular);
+
+
+    vec3 shadedColor = ambient + shadow;
+    return shadedColor;
+};
 
 
 
-//CÓDIGO A DESARROLLAR
+
 
 void main(){
+    // Cada thread conoce exactamente su posición en la grilla de ejecución. 
     ivec2 pixelCoords = ivec2(gl_GlobalInvocationID.xy);
+
+    // dimensiones de la imagen de salida
     ivec2 imageSize = imageSize(outputImage);
 
-    if (pixelCoords.x >= imageSize.x || pixelCoords.y >= imageSize.y)
-    return;
+    // if evita que estos threads intenten escribir en memoria inválida, lo que causaría errores.
+    if (pixelCoords.x >= imageSize.x  || pixelCoords.y >= imageSize.y)
+    return; 
 
+    // definimos el color 
     vec4 color = vec4(1.0, 0.0, 0.0, 1.0);
 
+    // factor de correción
     float fovAdjustment = tan(radians(fieldOfView) * 0.5);
+    // relación de aspecto de la imagen
     float aspectRatio = float(imageSize.x) / float(imageSize.y);
 
+    // convertimos las coordenadas del pixel en coordenadas normalizadas
     vec2 uv = (vec2(pixelCoords) + 0.5) / vec2(imageSize);
+
+    //transformamos a coordenadas de dispositivo dentro del rando [0,1]
     vec2 ndc = (uv * 2.0 - 1.0) * fovAdjustment;
     ndc.x *= aspectRatio;
 
     vec3 rayDirCamera = vec3(ndc.x, ndc.y, -1.0);
     rayDirCamera = normalize(rayDirCamera);
 
-    vec3 rayDirection = normalize((inverseViewMatrix * vec4(rayDirCamera, 0.0)).xyz);
+    vec3 rayDirection = normalize((inverseViewMatrix * vec4(rayDirCamera,0.0)).xyz);
     vec3 rayOrigin = (inverseViewMatrix * vec4(cameraPosition, 1.0)).xyz;
 
-    float timeNear, timeFar;
-    vec3 boundingBoxMin = (vec4(-1.0) * modelMatrices[0]).xyz;
-    vec3 boundingBoxMax = (vec4(1.0) * modelMatrices[0]).xyz;
+    float hitDist;
+    vec3 hitPos;
+    vec3 hitNorm;
 
-    vec3 finalColor;
+    // guarda el color final del pixel, sumando los aportes de cada rebote
+    vec3 accumulatedColor = vec3(0.0);
+   // cuanta energia o intensidad conserva el rayo
+    vec3 rayThroughput = vec3(1.0);
 
-    if (intersectAxisAlignedBox(rayOrigin, rayDirection, boundingBoxMin, boundingBoxMax, timeNear, timeFar)){
-        finalColor = color.xyz;
-    } else{
-        finalColor = vec3(0.0, 0.0, 0.0);
+    for(int boundeIndex = 0; boundeIndex < MAX_RAY_BOUNCES; boundeIndex++){
+        RayHit hit = traverseBoundingVolumeHierarchy(rayOrigin, rayDirection);
+
+        if(hit.didHit){
+            vec3 shadedColor = calculateShading (hit.color, hit.position, hit.normal, -rayDirection);
+            // si es 0, mate. si es 1, espejo.
+           //se usa camp para asegurar que sea en ese rango
+            float reflectivity = clamp(hit.reflectivity, 0.0, 1.0);
+           
+            //la parte absorbida contribuye al color del pixel
+            accumulatedColor += rayThroughput * (1.0 - reflectivity) * shadedColor;
+           
+            //la parte reflejada continua viajando
+            rayThroughput *= reflectivity;
+
+            if(max(max(rayThroughput.x, rayThroughput.y), rayThroughput.z) < 1e-3) break;
+
+            // evitar intersecciones
+            rayOrigin = hit.position + hit.normal * EPS;
+            rayDirection = reflect(rayDirection, hit.normal);
+        }else {
+            accumulatedColor += rayThroughput * vec3(0.6, 0.8, 1.0) * (1.0 - rayDirection.y);
+            break;
+        }
     }
 
-    imageStore(outputImage, pixelCoords, vec4(finalColor, 1.0));
+    vec3 gammaCorrection = pow(accumulatedColor, vec3(1.0/2.2));
+    imageStore(outputImage, pixelCoords, vec4(gammaCorrection, 1.0));
 }
