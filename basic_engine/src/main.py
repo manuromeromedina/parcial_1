@@ -1,8 +1,3 @@
-#ejecuta el programa, crea un ventana window, un shaderprogram
-#una scene, crea las instancias de los objetivos graficos (cube)
-#crea la camra y la posiciona
-#agrega los objetos en la escena y corre el loop principal
-
 from window import Window
 from texture import Texture
 from material import Material, StandardMaterial
@@ -91,3 +86,9 @@ elif SCENE_TYPE == "gpu":
 
 window.set_scene(scene)
 window.run()
+
+
+#ejecuta el programa, crea un ventana window, un shaderprogram
+#una scene, crea las instancias de los objetivos graficos (cube)
+#crea la camra y la posiciona
+#agrega los objetos en la escena y corre el loop principal

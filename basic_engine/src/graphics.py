@@ -1,7 +1,6 @@
 import numpy as np
 import glm
-# crea el VBO, IBO y VAO con el shaderprogram  y el format
-# implementa el metodo render para renderizar el vao
+
 
 class Graphics:
     def __init__(self, ctx, model, material):

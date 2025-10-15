@@ -1,9 +1,4 @@
-# para saber si un rayo intercept un objeto necesitamos de hitbox
-# representación geométrica simplificada que enmarca a un objeto poligonal
-# se utiliza para detectar colisiones o intersecciones
-# es una estructura lógica/matemática
 
-#tendra un posición y una escala
 
 import glm
 
@@ -130,3 +125,10 @@ class HitBoxOBB(Hit):
         t_far = min(t2.x, t2.y, t2.z)
 
         return t_near <= t_far and t_far >= 0
+    
+# para saber si un rayo intercept un objeto necesitamos de hitbox
+# representación geométrica simplificada que enmarca a un objeto poligonal
+# se utiliza para detectar colisiones o intersecciones
+# es una estructura lógica/matemática
+
+#tendra un posición y una escala

@@ -1,7 +1,4 @@
-# estructura lógica que organiza las primitivas en un árbol binario.
-# Cada nodo tiene un AABB que contiene un conjunto de primitivas.
-# Si es una hoja, almacena directamente las primitivas.
-# Si no lo es, se divide en dos ramas (izquierda y derecha), intentando equilibrar el árbol.
+
 
 import numpy as np
 
@@ -93,3 +90,9 @@ class BVH:
         for node in self.nodes:
             floats.extend(node.pack())
         return np.array(floats, dtype='f4').tobytes()
+
+
+# estructura lógica que organiza las primitivas en un árbol binario.
+# Cada nodo tiene un AABB que contiene un conjunto de primitivas.
+# Si es una hoja, almacena directamente las primitivas.
+# Si no lo es, se divide en dos ramas (izquierda y derecha), intentando equilibrar el árbol.

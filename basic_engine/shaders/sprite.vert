@@ -1,4 +1,4 @@
-#version 330 
+#version 330 core
 
 in vec2 in_pos;
 in vec2 in_uv;

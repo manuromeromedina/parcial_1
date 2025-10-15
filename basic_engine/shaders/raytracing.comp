@@ -1,8 +1,5 @@
 #version 430
 
-// layout --> palabra clave layout es un calificador de GLSL que especifica cómo se organizan
-// local_size -->  "groups" que definimos al ejecutar el compute shader
-// 16x16 para un buen balance entre ocupación de GPU y eficiencia cache
 layout(local_size_x = 16, local_size_y = 16) in;
 layout(rgba32f, binding = 0 ) uniform image2D outputImage;
 
