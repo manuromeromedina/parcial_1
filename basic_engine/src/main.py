@@ -8,9 +8,9 @@ from scene import Scene, RayScene, RaySceneGPU
 from quad import Quad
 import numpy as np
 
-WIDTH, HEIGHT = 1000,800
+WIDTH, HEIGHT = 80,60
 
-SCENE_TYPE = "cpu" # opciones "normal, "cpu", "gpu"
+SCENE_TYPE = "gpu" # opciones "normal, "cpu", "gpu"
 
 scene_configs = {
     "normal": {

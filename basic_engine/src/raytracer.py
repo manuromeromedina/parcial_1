@@ -52,7 +52,7 @@ class RayTracerGPU:
         self.camera = camera
         self.width = width
         self.height = height
-        self.compute_shader = ComputeShaderProgram(self.ctx, "shaders/raytracing.comp")
+        self.compute_shader = ComputeShaderProgram(self.ctx, "../shaders/raytracing.comp")
         self.output_graphics = output_graphics
 
         # seleccionamos una unidad de imagen
