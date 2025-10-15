@@ -31,7 +31,10 @@ class Model:
         self.indices = indices
         self.vertex_layout = VertexLayout()
         if vertices is not None:
-            self.vertex_layout.add_attribute("in_pos", "3f", vertices)
+            if len(vertices) % 3 == 0:
+                self.vertex_layout.add_attribute("in_pos", "3f", vertices)
+            elif len(vertices) % 2 == 0:
+                self.vertex_layout.add_attribute("in_pos", "2f", vertices)
         if colors is not None:
             self.vertex_layout.add_attribute("in_color", "3f", colors)
         if normals is not None:

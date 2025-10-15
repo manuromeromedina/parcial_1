@@ -1,0 +1,79 @@
+#version 430
+
+layout(local_size_x = 16, local_size_y = 16) in;
+layout(rgba32f, binding = 0) uniform image2D outputImage;
+
+layout(std430, binding = 0) buffer Models { mat4 modelMatrices[]; };
+layout(std430, binding = 1) buffer InvModels { mat4 inverseModelMatrices[]; };
+layout(std430, binding = 2) buffer Materials { mat4 materialData[]; };
+layout(std430, binding = 3) buffer BVH { mat4 bvhNodes[]; };
+
+uniform vec3 cameraPosition;
+uniform mat4 inverseViewMatrix;
+uniform float fieldOfView;
+const float EPS = 1e-4;
+const int MAX_RAY_BOUNCES = 3;
+const vec3 LIGHT_DIRECTION = normalize(vec3(0.5, 1.0, 0.1));
+const vec3 LIGHT_COLOR = vec3(1.0, 1.0, 1.0);
+
+struct RayHit {
+    bool didHit;                //¿Hubo interacción?
+    float distance;            //Distancia al punto de impacto
+    vec3 position;            //Posición dle impacto (mundo)
+    vec3 normal;             //Nomal de la superficie
+    vec3 color;             //Color del material
+    float reflectivity;    //Reflectividad (0-1)
+};
+
+bool intersectAxisAlignedBox(vec3 rayOrigin, vec3 rayDirection, 
+                             vec3 boxMin, vec3 boxMax, 
+                             out float timeNear, out float timeFar) {
+    vec3 timeAtMinPlane = (boxMin - rayOrigin) / rayDirection;
+    vec3 timeAtMaxPlane = (boxMax - rayOrigin) / rayDirection;
+    vec3 timeMin = min(timeAtMinPlane, timeAtMaxPlane);
+    vec3 timeMax = max(timeAtMinPlane, timeAtMaxPlane);
+    timeNear = max(max(timeMin.x, timeMin.y), timeMin.z);
+    timeFar = min(min(timeMax.x, timeMax.y), timeMax.z);
+    return timeFar >= max(timeNear, 0.0);
+}
+
+
+
+//CÓDIGO A DESARROLLAR
+
+void main(){
+    ivec2 pixelCoords = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 imageSize = imageSize(outputImage);
+
+    if (pixelCoords.x >= imageSize.x || pixelCoords.y >= imageSize.y)
+    return;
+
+    vec4 color = vec4(1.0, 0.0, 0.0, 1.0);
+
+    float fovAdjustment = tan(radians(fieldOfView) * 0.5);
+    float aspectRatio = float(imageSize.x) / float(imageSize.y);
+
+    vec2 uv = (vec2(pixelCoords) + 0.5) / vec2(imageSize);
+    vec2 ndc = (uv * 2.0 - 1.0) * fovAdjustment;
+    ndc.x *= aspectRatio;
+
+    vec3 rayDirCamera = vec3(ndc.x, ndc.y, -1.0);
+    rayDirCamera = normalize(rayDirCamera);
+
+    vec3 rayDirection = normalize((inverseViewMatrix * vec4(rayDirCamera, 0.0)).xyz);
+    vec3 rayOrigin = (inverseViewMatrix * vec4(cameraPosition, 1.0)).xyz;
+
+    float timeNear, timeFar;
+    vec3 boundingBoxMin = (vec4(-1.0) * modelMatrices[0]).xyz;
+    vec3 boundingBoxMax = (vec4(1.0) * modelMatrices[0]).xyz;
+
+    vec3 finalColor;
+
+    if (intersectAxisAlignedBox(rayOrigin, rayDirection, boundingBoxMin, boundingBoxMax, timeNear, timeFar)){
+        finalColor = color.xyz;
+    } else{
+        finalColor = vec3(0.0, 0.0, 0.0);
+    }
+
+    imageStore(outputImage, pixelCoords, vec4(finalColor, 1.0));
+}
