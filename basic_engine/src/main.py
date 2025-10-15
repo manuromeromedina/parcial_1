@@ -39,7 +39,7 @@ scene_configs = {
 config = scene_configs[SCENE_TYPE]
 
 
-window = Window(WIDTH, HEIGHT, f"Basic Graphic Engine - {SCENE_TYPE.upper()}")
+window = Window(WIDTH, HEIGHT, f"Parcial 1 - Manuel Romero Medina - 2105277 - (Manolo) - {SCENE_TYPE.upper()}")
 
 
 shader = ShaderProgram(window.ctx, '../shaders/basic.vert', '../shaders/basic.frag')
