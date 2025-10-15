@@ -10,7 +10,7 @@ import numpy as np
 
 WIDTH, HEIGHT = 80,60
 
-SCENE_TYPE = "gpu" # opciones "normal, "cpu", "gpu"
+SCENE_TYPE = "cpu" # opciones "normal, "cpu", "gpu"
 
 scene_configs = {
     "normal": {
