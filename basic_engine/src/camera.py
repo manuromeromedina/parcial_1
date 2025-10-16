@@ -50,7 +50,7 @@ class Camera:
             # si u = 0 --> ndc_x = - 1 (izquierda)
             # si u = 1 --> ndc_x =  1 (derecha)
             # al multiplicar por el fov, corregimos según el ángulo de vision y la relación de aspecto
-        ndc_x = ((2 * u ) - 1) * self.aspect * fov_adjustment
+        ndc_x = ((2 * u ) - 1) * self.aspect * fov_adjustment 
 
         #  para v --> esta entre [0,1]
             # se escala 2 * u --> [0,2]
